@@ -1,0 +1,49 @@
+load spax2020.cod
+module library libgpsim_modules
+stimulus asynchronous_stimulus period 112 { 1, 1, 58, 0} name dcc1 end
+stimulus asynchronous_stimulus period 112 { 1, 0, 58, 1} name dcc2 end
+node n1
+attach n1 dcc1
+attach n1 gpio2
+node n2
+attach n2 dcc2
+attach n2 gpio3
+module load led ledR
+ledR.xpos = 72
+ledR.ypos = 168
+node n3
+attach n3 ledR.in
+attach n3 gpio5
+module load led ledG
+ledG.xpos = 72
+ledG.ypos = 216
+ledG.color = green
+node n4
+attach n4 ledG.in
+attach n4 gpio4
+module load led enable
+enable.xpos = 252
+enable.ypos = 84
+enable.color = green
+node n5
+attach n5 enable.in
+attach n5 gpio0
+module load switch zkrat
+zkrat.xpos = 72
+zkrat.ypos = 264
+zkrat.state = false
+module load pullup R1
+R1.xpos = 216
+R1.ypos = 264
+R1.resistance = 10000
+module load pulldown R2
+R2.xpos = 72
+R2.ypos = 312
+R2.resistance = 100
+node n6
+attach n6 zkrat.A
+attach n6 gpio1
+attach n6 R1.pin
+node n7
+attach n7 zkrat.B
+attach n7 R2.pin
