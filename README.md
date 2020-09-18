@@ -50,7 +50,8 @@ States:
 
 ## Authors
 
- * Michal Petrilak
+ * hardware: Jan Horacek
+ * firmware: Michal Petrilak
 
 ## License
 
