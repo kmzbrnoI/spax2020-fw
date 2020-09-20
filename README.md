@@ -1,8 +1,11 @@
 # SPAX-2020 firmware
 
-SPAX is a model-railroad DCC signal booster. It is a well-known hardware
-construction. This repository contains firmware and PCB design for a new
-processor PIC12F629 which is supposed to replace original PIC12F508 SPAX
+[SPAX](http://fremodcc.sourceforge.net/booster/spaxbooster/index.html)
+is a model-railroad DCC signal booster. It is a [ell-known hardware
+construction from FREMO model railroaders club in
+Germany](http://fremodcc.sourceforge.net/booster/spaxbooster/index.html).
+This repository contains firmware and PCB design for a new
+processor PIC12F629 which is supposed to replace original PIC12F508 SPAX v2
 processor **without** changing whole SPAX pcb.
 
 This is a low-cost solution for eliminating old-processor disadvantages.
