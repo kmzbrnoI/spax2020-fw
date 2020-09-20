@@ -1,7 +1,7 @@
 # SPAX-2020 firmware
 
 [SPAX](http://fremodcc.sourceforge.net/booster/spaxbooster/index.html)
-is a model-railroad DCC signal booster. It is a [ell-known hardware
+is a model-railroad DCC signal booster. It is a [well-known hardware
 construction from FREMO model railroaders club in
 Germany](http://fremodcc.sourceforge.net/booster/spaxbooster/index.html).
 This repository contains firmware and PCB design for a new
