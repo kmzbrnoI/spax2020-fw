@@ -216,6 +216,12 @@ main:       nop
             BTFSS   foverC
             BTFSS   overC       ; driver overload (int. comp.) ?
             GOTO    ma_1        ; no, skip next section
+            BTFSS   overC       ; repeat 4×: overcurrent if 4 readings at 250 ns are true (1 us total)
+            GOTO    ma_1
+            BTFSS   overC
+            GOTO    ma_1
+            BTFSS   overC
+            GOTO    ma_1
             BSF     foverC      ; yes, remember it
             CLRF    TMR1L       ; | reset T1 to init value
             MOVLW   CTIMET1     ; |
