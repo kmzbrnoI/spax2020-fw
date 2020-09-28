@@ -213,7 +213,10 @@ main:       nop
             call    DCCtstfast
             call    handleLed
 
-            BTFSS   foverC
+            BTFSC   foverC
+            GOTO overload_end_detect
+
+overload_detect:                ; 1 us debounce
             BTFSS   overC       ; driver overload (int. comp.) ?
             GOTO    ma_1        ; no, skip next section
             BTFSS   overC       ; repeat 4×: overcurrent if 4 readings at 250 ns are true (1 us total)
@@ -226,6 +229,20 @@ main:       nop
             CLRF    TMR1L       ; | reset T1 to init value
             MOVLW   CTIMET1     ; |
             MOVWF   TMR1H       ; |
+            GOTO ma_1
+
+overload_end_detect:            ; 1 us debounce
+            BTFSC   overC       ; driver overload (int. comp.) ?
+            GOTO    ma_1        ; no, skip next section
+            BTFSC   overC       ; repeat 4×: overcurrent if 4 readings at 250 ns are true (1 us total)
+            GOTO    ma_1
+            BTFSC   overC
+            GOTO    ma_1
+            BTFSC   overC
+            GOTO    ma_1
+            BCF     foverC      ; yes, remember it
+            GOTO ma_1
+
 ma_1:
             ; TIMER
             BTFSS   PIR1,TMR1IF ; T1 overflow ? (T1 = 4.9152 ms @ 4.0 MHz)
@@ -316,8 +333,6 @@ calc_OC2:   DECFSZ  zkrat_cnt, f; enought time in state 3 and overcurrent ?
 
 
 T1_end:
-            bcf     foverC
-
 ;            MOVF    zes_stav,w    ; stav = 1 -> režim OK
 ;            SUBLW   d'1'          ; |
 ;            BTFSC   STATUS,Z      ; |
