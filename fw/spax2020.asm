@@ -166,8 +166,8 @@ init:                           ; init
             BANK1
             movlw   GP_TRIS
             movwf   TRISIO
-            call    0x3FF       ; get OSCCAL value
-            movwf   OSCCAL
+            call    0x3FF       ; get OSCCAL value; comment out this for simulation
+            movwf   OSCCAL      ; comment out this for simulation
 ;            nop
 ;            nop
             movlw   IOC_INI
@@ -216,12 +216,10 @@ main:       nop
             BTFSC   foverC
             GOTO overload_end_detect
 
-overload_detect:                ; 1 us debounce
+overload_detect:                ; 6 us debounce
             BTFSS   overC       ; driver overload (int. comp.) ?
             GOTO    ma_1        ; no, skip next section
-            BTFSS   overC       ; repeat 4×: overcurrent if 4 readings at 250 ns are true (1 us total)
-            GOTO    ma_1
-            BTFSS   overC
+            BTFSS   overC       ; repeat 3×: 6 us total
             GOTO    ma_1
             BTFSS   overC
             GOTO    ma_1
@@ -231,10 +229,12 @@ overload_detect:                ; 1 us debounce
             MOVWF   TMR1H       ; |
             GOTO ma_1
 
-overload_end_detect:            ; 1 us debounce
-            BTFSC   overC       ; driver overload (int. comp.) ?
+overload_end_detect:            ; 10 us debounce
+            BTFSC   overC       ; driver ok (int. comp.) ?
             GOTO    ma_1        ; no, skip next section
-            BTFSC   overC       ; repeat 4×: overcurrent if 4 readings at 250 ns are true (1 us total)
+            BTFSC   overC       ; repeat 5×: 10 us total
+            GOTO    ma_1
+            BTFSC   overC
             GOTO    ma_1
             BTFSC   overC
             GOTO    ma_1
