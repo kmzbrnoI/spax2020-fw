@@ -74,6 +74,7 @@ cblock 0x30
             DCCtmr_post
             obn_stav    ; stav obnovení (jak dlouho čekat)
             obn_cnt     ; čítač času obnovení (4xT1)
+            overload_debouncer
 endc
 
 #define     fDCC1_hi    flags_DCC,0 ; DCC test internal flags
@@ -213,35 +214,41 @@ main:       nop
             call    DCCtstfast
             call    handleLed
 
-            BTFSC   foverC
-            GOTO overload_end_detect
+overload_detect:
+            MOVLW   0x02
+            MOVWF   overload_debouncer
 
-overload_detect:                ; 6 us debounce
-            BTFSS   overC       ; driver overload (int. comp.) ?
-            GOTO    ma_1        ; no, skip next section
-            BTFSS   overC       ; repeat 3×: 6 us total
+            ; Debouncing: always takes 16 us, measuring each 2 us
+            ; Overload is reported when > 2 times overload is detected
+            ; smallest interval between DCC change = 58 us (= capacitor loading = short overload; should be fine)
+            BTFSC   overC       ; driver overload (int. comp.) ?
+            DECF    overload_debouncer
+            BTFSC   overC
+            DECF    overload_debouncer
+            BTFSC   overC
+            DECF    overload_debouncer
+            BTFSC   overC
+            DECF    overload_debouncer
+            BTFSC   overC
+            DECF    overload_debouncer
+            BTFSC   overC
+            DECF    overload_debouncer
+            BTFSC   overC
+            DECF    overload_debouncer
+            BTFSC   overC
+            DECF    overload_debouncer
+
+            BTFSC   overload_debouncer, 7  ; highest bit = 1 -> shortcut for >=2 measurements
+            GOTO    overload
+            BCF     foverC
             GOTO    ma_1
-            BTFSS   overC
-            GOTO    ma_1
-            BSF     foverC      ; yes, remember it
+
+overload:   BTFSC   foverC
+            GOTO    ma_1        ; do not reset timer when foverC already set
+            BSF     foverC      ; remember shortcut
             CLRF    TMR1L       ; | reset T1 to init value
             MOVLW   CTIMET1     ; |
             MOVWF   TMR1H       ; |
-            GOTO ma_1
-
-overload_end_detect:            ; 10 us debounce
-            BTFSC   overC       ; driver ok (int. comp.) ?
-            GOTO    ma_1        ; no, skip next section
-            BTFSC   overC       ; repeat 5×: 10 us total
-            GOTO    ma_1
-            BTFSC   overC
-            GOTO    ma_1
-            BTFSC   overC
-            GOTO    ma_1
-            BTFSC   overC
-            GOTO    ma_1
-            BCF     foverC      ; yes, remember it
-            GOTO ma_1
 
 ma_1:
             ; TIMER
