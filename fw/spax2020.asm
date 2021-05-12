@@ -212,33 +212,9 @@ main:       nop
             call    DCCtstfast
             call    handleLed
 
-overload_detect:
-            MOVLW   0x02
-            MOVWF   overload_debouncer
-
-            ; Debouncing: always takes 16 us, measuring each 2 us
-            ; Overload is reported when > 2 times overload is detected
-            ; smallest interval between DCC change = 58 us (= capacitor loading = short overload; should be fine)
-            BTFSC   overC       ; driver overload (int. comp.) ?
-            DECF    overload_debouncer
-            BTFSC   overC
-            DECF    overload_debouncer
-            BTFSC   overC
-            DECF    overload_debouncer
-            BTFSC   overC
-            DECF    overload_debouncer
-            BTFSC   overC
-            DECF    overload_debouncer
-            BTFSC   overC
-            DECF    overload_debouncer
-            BTFSC   overC
-            DECF    overload_debouncer
-            BTFSC   overC
-            DECF    overload_debouncer
-
-            BTFSC   overload_debouncer, 7  ; highest bit = 1 -> shortcut for >=2 measurements
+            CALL    overload_detect
+            BTFSC   foverC
             GOTO    overload
-            BCF     foverC
             GOTO    ma_1
 
 overload:   BTFSC   foverC
@@ -395,6 +371,43 @@ handleLed:
             btfsc   foverC
             bsf     led_red
             return
+
+; ****************************
+
+overload_detect:
+            ; Overload pin short-time debouncing
+            ; Debouncing always takes 16 us, measuring each 2 us
+            ; Overload is reported when > 2 times overload is detected
+            ; smallest interval between DCC change = 58 us (= capacitor loading = short overload; should be fine)
+
+            MOVLW   0x02
+            MOVWF   overload_debouncer
+
+            BTFSC   overC         ; driver overload (int. comp.) ?
+            DECF    overload_debouncer
+            BTFSC   overC
+            DECF    overload_debouncer
+            BTFSC   overC
+            DECF    overload_debouncer
+            BTFSC   overC
+            DECF    overload_debouncer
+            BTFSC   overC
+            DECF    overload_debouncer
+            BTFSC   overC
+            DECF    overload_debouncer
+            BTFSC   overC
+            DECF    overload_debouncer
+            BTFSC   overC
+            DECF    overload_debouncer
+
+            BTFSC   overload_debouncer, 7  ; highest bit = 1 -> shortcut for >=2 measurements
+            GOTO    is_overload
+            BCF     foverC
+            return
+is_overload:
+            BSF     foverC
+            return
+
 
 ; ****************************
 
