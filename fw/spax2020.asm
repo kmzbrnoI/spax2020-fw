@@ -29,17 +29,21 @@
 #define     led_red     GP_ram,5
 #define     drv_en      GP_ram,0
 
+; Main timer 1
 CTIMET1     equ     0x100 - d'20'       ; master timer T = 5.12 ms (4 MHz / 4 / 1 / 256 / 20)
 CTIMET1L    equ     0x100 - d'100'      ; |
 DCC_CHCK    equ     d'10'
 DCC_post    equ     d'3'                ; timer postscaler
 
-zkrat_t1    equ       d'04'             ; short-circuit react time (first & permanent) 04 = 20 ms
-zkrat_t2    equ       d'01'             ; short-circuit react time (repeated) 01 =  5 ms
-set_obn_t0  equ       d'020'            ;   (100 ms) delays between restore attempts
-set_obn_t1  equ       d'040'            ; | (200 ms)
-set_obn_t2  equ       d'080'            ; | (400 ms)
-set_obn_t3  equ       d'120'            ; | (600 ms))
+; Timer 0 for reading short-circuit detection
+;CTIME0      equ     
+
+short_t1    equ     d'04'               ; short-circuit react time (first & permanent) 04 = 20 ms
+short_t2    equ     d'01'               ; short-circuit react time (repeated) 01 =  5 ms
+set_res_t0  equ     d'020'              ;   (100 ms) delays between restore attempts
+set_res_t1  equ     d'040'              ; | (200 ms)
+set_res_t2  equ     d'080'              ; | (400 ms)
+set_res_t3  equ     d'120'              ; | (600 ms))
 
 GP_TRIS     equ     b'00001110'         ; only analog inputs: GP0, GP1
 GP_INI      equ     b'00000000'         ; all zero
@@ -136,10 +140,10 @@ irq_notused:
 
 obn_tab:    ANDLW   0x03
             ADDWF   PCL, F
-            RETLW   set_obn_t0
-            RETLW   set_obn_t1
-            RETLW   set_obn_t2
-            RETLW   set_obn_t3
+            RETLW   set_res_t0
+            RETLW   set_res_t1
+            RETLW   set_res_t2
+            RETLW   set_res_t3
 
 skok_stav:  MOVF    state,w
             ANDLW   0x03
@@ -254,8 +258,8 @@ stav_0:     MOVLW   1             ; goto state 1
             ; running, all ok
 stav_1:     BTFSC   foverC        ; if (overcurrent)
             GOTO    calc_OC       ; yes, solve what to do
-            MOVF    short_cnt, W  ; no, test if short_cnt is in normal state (short_cnt == zkrat_t1)
-            SUBLW   zkrat_t1      ; |
+            MOVF    short_cnt, W  ; no, test if short_cnt is in normal state (short_cnt == short_t1)
+            SUBLW   short_t1      ; |
             BTFSS   STATUS,Z      ; |
             INCF    short_cnt, F  ; no, increment by 1
             GOTO    T1_end
@@ -276,9 +280,9 @@ stav_2:     DECFSZ  restore_cnt,f ; measure recovery wait time
 
             MOVF    restore_state,w ; |
             SUBLW   d'02'         ; if (restore_state < 3)
-            MOVLW   zkrat_t1      ; |
+            MOVLW   short_t1      ; |
             BTFSC   STATUS,C      ; yes, set t1
-            MOVLW   zkrat_t2      ; no, set t2
+            MOVLW   short_t2      ; no, set t2
             MOVWF   short_cnt     ; |
             MOVLW   0x01          ; move to next state (recovery)
             ADDWF   state,f
