@@ -141,20 +141,20 @@ irq_notused:
 ; **       Tabulky          **
 ; ****************************
 
-obn_tab:    ANDLW   0x03
+ref_tab:    ANDLW   0x03
             ADDWF   PCL, F
             RETLW   set_res_t0
             RETLW   set_res_t1
             RETLW   set_res_t2
             RETLW   set_res_t3
 
-skok_stav:  MOVF    state,w
+jump_state: MOVF    state,w
             ANDLW   0x03
             ADDWF   PCL, F
-            GOTO    stav_0          ; invalid
-            GOTO    stav_1          ; run
-            GOTO    stav_2          ; poweroff
-            GOTO    stav_3          ; recovery
+            GOTO    state_0          ; invalid
+            GOTO    state_1          ; run
+            GOTO    state_2          ; poweroff
+            GOTO    state_3          ; recovery
 
 ;state diagram:
 ;    power on = state 0 -> state 1
@@ -214,8 +214,7 @@ init_end:
 ; **       Main Loop        **
 ; ****************************
 
-main:       nop
-
+main:
             movfw   GP_ram          ; copy GP_ram to outputs
             movwf   GPIO            ; |
             movfw   GPIO            ; read GPIO (for IOC work)
@@ -277,17 +276,17 @@ T1:         BCF     PIR1,TMR1IF     ; yes, clear overflow flag
             call    DCCtst          ; solve DCC detection
 
 nodcctst:
-            GOTO    skok_stav       ; state machine - begin
+            GOTO    jump_state      ; state machine - begin
 
             ; invalid state
-stav_0:     MOVLW   1               ; goto state 1
+state_0:    MOVLW   1               ; goto state 1
             MOVWF   state
             movlw   1
             movwf   short_cnt
             GOTO    T1_end
 
             ; running, all ok
-stav_1:     BTFSC   fover           ; if (overcurrent)
+state_1:    BTFSC   fover           ; if (overcurrent)
             GOTO    calc_OC         ; yes, solve what to do
             MOVF    short_cnt, W    ; no, test if short_cnt is in normal state (short_cnt == short_t1)
             SUBLW   short_t1        ; |
@@ -301,12 +300,12 @@ calc_OC:
             ADDWF   state,f
             MOVLW   0x00            ; set first recover interval
             MOVWF   restore_state   ; |
-            CALL    obn_tab         ; |
+            CALL    ref_tab         ; |
             MOVWF   restore_cnt     ; |
             GOTO    T1_end
 
             ; short cirtuit, track off
-stav_2:     DECFSZ  restore_cnt,f   ; measure recovery wait time
+state_2:    DECFSZ  restore_cnt,f   ; measure recovery wait time
             GOTO    T1_end          ; if (restore_cnt > 0) then wait
 
             MOVF    restore_state,w ; |
@@ -320,7 +319,7 @@ stav_2:     DECFSZ  restore_cnt,f   ; measure recovery wait time
             GOTO    T1_end
 
             ; short circuit, track on, recovery
-stav_3:     BTFSC   fover           ; if (overcurrent)
+state_3:    BTFSC   fover           ; if (overcurrent)
             GOTO    calc_OC2        ; yes, solve what to do
             DECFSZ  short_cnt, f    ; no, if (short_cnt == 0)
             GOTO    T1_end          ; no, do nothing
@@ -339,7 +338,7 @@ calc_OC2:   DECFSZ  short_cnt, f    ; enough time in state 3 and overcurrent ?
             BTFSC   STATUS,C        ; |
             INCF    restore_state,f ; yes, restore_state++
             MOVFW   restore_state   ; |
-            CALL    obn_tab         ; get restore_cnt
+            CALL    ref_tab         ; get restore_cnt
             MOVWF   restore_cnt     ; |
 
             GOTO    T1_end
