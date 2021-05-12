@@ -1,4 +1,4 @@
-# SPAX-2020 firmware
+# SPAX 2020
 
 [SPAX](http://fremodcc.sourceforge.net/booster/spaxbooster/index.html)
 is a model-railroad DCC signal booster. It is a [well-known hardware
@@ -54,7 +54,7 @@ States:
 ## Authors
 
  * hardware: Jan Horacek
- * firmware: Michal Petrilak
+ * firmware: Michal Petrilak, Jan Horacek
 
 ## License
 
