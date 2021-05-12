@@ -121,7 +121,7 @@ irq_dcc:    IRQ_IOC_CLR         ; test DCC pins and set flags
             btfss   DCC_in2
             bsf     fDCC2_lo
 
-irq_end:    swapf   tmps,W      ; restore state
+irq_end:    swapf   tmps,W     ; restore state
             movwf   STATUS
             swapf   tmpw,f
             swapf   tmpw,w
@@ -266,8 +266,6 @@ T1:         BCF     PIR1,TMR1IF ; yes, clear overflow flag
             call    DCCtst      ; solve DCC detection
 
 nodcctst:
-            CALL    handleBlik  ; solve blinking leds
-
             GOTO    skok_stav   ; state machine - begin
 
             ; invalid state
@@ -393,34 +391,8 @@ DCCnok:
 
 ; ****************************
 
-handleBlik:                     ; invert fblik in right time
-            incf    LED_cnt, f
-            movfw   LED_cnt     ; if (LED_cnt > 30)
-            sublw   d'30'
-            btfsc   STATUS,C
-            return
-            clrf    LED_cnt
-            btfss   fblik       ; invert fblik flag
-            goto    $+3
-            bcf     fblik
-            goto    $+2
-            bsf     fblik
-            return
-
-; ****************************
-
 handleLed:
-            ; LED handling
-;            bsf     led_green   ; steady lit green led, for running state
-;            btfsc   fDCCok      ; if DCC ok
-;            goto    ledgrend    ; yes, proceed
-ledgrblik:                       ; no, blink green led
-;            btfsc   fblik       ; copy fblik state to led green
-;            bsf     led_green
-;            btfss   fblik
-;            bcf     led_green
-
-            btfsc   drv_zap       ; copy fblik state to led green
+            btfsc   drv_zap     ; copy drv_zap to led green
             bsf     led_green
             btfss   drv_zap
             bcf     led_green
