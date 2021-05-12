@@ -336,13 +336,6 @@ calc_OC2:   DECFSZ  zkrat_cnt, f; enought time in state 3 and overcurrent ?
 
 
 T1_end:
-;            MOVF    zes_stav,w    ; stav = 1 -> režim OK
-;            SUBLW   d'1'          ; |
-;            BTFSC   STATUS,Z      ; |
-;            BCF     zkrat         ; |
-;            BTFSS   STATUS,Z      ; |
-;            BSF     zkrat         ; |
-
             BCF     drv_en        ; drv_en (output) = !(drv_zap & fDCCok)
             BTFSS   drv_zap       ; |
             GOTO    main          ; |
