@@ -92,8 +92,9 @@ endc
 #define     fDCCtstok   flags,3     ; fast test DCC
 #define     foverC      flags,4     ; fast flag
 
-#define     drv_zap     state,0; output state
-#define     zkrat       state,1; overcurrent detected
+#define     s_drv_en     state,0; output state
+#define     s_overcur    state,1; overcurrent detected
+
 
 ; ****************************
 ; **         START          **
@@ -232,7 +233,8 @@ overload:   BTFSC   foverC
             MOVLW   CTIMET1       ; |
             MOVWF   TMR1H         ; |
 
-ma_0:       ; TIMER 0
+ma_0:
+            ; TIMER 0
             BTFSS   INTCON,T0IF   ; T0 overflow?
             GOTO    ma_1          ; no, go to ma_1
 
@@ -328,8 +330,8 @@ calc_OC2:   DECFSZ  short_cnt, f  ; enought time in state 3 and overcurrent ?
 
 
 T1_end:
-            BCF     drv_en        ; drv_en (output) = !(drv_zap & fDCCok)
-            BTFSS   drv_zap       ; |
+            BCF     drv_en        ; drv_en (output) = !(s_drv_en & fDCCok)
+            BTFSS   s_drv_en       ; |
             GOTO    main          ; |
             BTFSS   fDCCok        ; |
             GOTO    main          ; |
@@ -377,9 +379,9 @@ DCCnok:
 ; ****************************
 
 handleLed:
-            btfsc   drv_zap       ; copy drv_zap to led green
+            btfsc   s_drv_en       ; copy s_drv_en to led green
             bsf     led_green
-            btfss   drv_zap
+            btfss   s_drv_en
             bcf     led_green
 
             btfss   foverC        ; copy enable output to led red
