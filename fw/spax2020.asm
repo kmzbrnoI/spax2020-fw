@@ -79,6 +79,7 @@ cblock 0x30
             restore_state     ; output restoring state (how long to wait)
             restore_cnt       ; output restoring counter (4xT1)
             overload_debouncer
+            over_cnt
 endc
 
 #define     fDCC1_hi    flags_DCC,0 ; DCC test internal flags
@@ -90,7 +91,7 @@ endc
 #define     fblikmask   b'00000010'
 #define     fDCCok      flags,2     ; delayed flag DCC
 #define     fDCCtstok   flags,3     ; fast test DCC
-#define     foverC      flags,4     ; fast flag
+#define     foverR      flags,4     ; fast flag
 
 #define     s_drv_en     state,0; output state
 #define     s_overcur    state,1; overcurrent detected
@@ -244,13 +245,16 @@ T0:         BCF     INTCON,T0IF     ; T0 overflow, clear overflow flag
 
             CALL    overload_detect ; is overload?
             BTFSC   foverR          ; |
-            GOTO    overload        ; yes,
+            GOTO    overload        ; yes
             INCF    over_cnt, F     ; no: if (over_cnt > 0) over_cnt--;
-            DECFSZ  over_cnt, F     
-            DECF    over_cnt, F
+            DECFSZ  over_cnt, F     ; |
+            DECF    over_cnt, F     ; |
+            GOTO    ma_1
 
 
-overload:
+overload:   BTFSS   over_cnt, 3     ; overload: if (over_cnt < 8) over_cnt++;
+            INCF    over_cnt, F     ; |
+            GOTO    ma_1            ; |
 
 
 ma_1:
