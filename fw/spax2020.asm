@@ -36,7 +36,7 @@ DCC_CHCK    equ     d'10'
 DCC_post    equ     d'3'                ; timer postscaler
 
 ; Timer 0 for reading short-circuit detection
-;CTIME0      equ     
+CTIMET0     equ     0x100 - d'125'      ; timer T = 500 us
 
 short_t1    equ     d'04'               ; short-circuit react time (first & permanent) 04 = 20 ms
 short_t2    equ     d'01'               ; short-circuit react time (repeated) 01 =  5 ms
@@ -47,7 +47,7 @@ set_res_t3  equ     d'120'              ; | (600 ms))
 
 GP_TRIS     equ     b'00001110'         ; only analog inputs: GP0, GP1
 GP_INI      equ     b'00000000'         ; all zero
-OPTION_INI  equ     b'10001101'         ; Option reg: no pull-up, falling GP2, TMR0 prescaler 64, wdt 1:1 (18ms)
+OPTION_INI  equ     b'10000001'         ; Option reg: no pull-up, falling GP2, TMR0 prescaler 4
 CMCON_INI   equ     b'00000100'         ; comparator GP1 input,use Vref, no output
 INTCON_INI  equ     b'10001000'         ; interrupt enable from GPchange, global enable
 VRCON_INI   equ     b'10001000'         ; Vref enabled, V=2.5V @ Vcc=5V
@@ -192,13 +192,17 @@ clrRAM:     decf    FSR,w
             btfss   STATUS, C
             goto    clrRAM
 
-            movlw   T1CON_INI
-            movwf   T1CON
-            movlw   0xff
-            movwf   TMR1H
-            movlw   DCC_post
-            movwf   DCCtmr_post
+            movlw   T1CON_INI   ; enable timer 1
+            movwf   T1CON       ; |
+            movlw   0xff        ; |
+            movwf   TMR1H       ; |
+            movlw   DCC_post    ; |
+            movwf   DCCtmr_post ; |
             IRQ_IOC_ENA
+
+            movlw   0xff        ; enable timer 0
+            movwf   TMR0        ; |
+
             movlw   INTCON_INI  ; enable interrupts
             movwf   INTCON
 init_end:
@@ -219,18 +223,26 @@ main:       nop
             CALL    overload_detect
             BTFSC   foverC
             GOTO    overload
-            GOTO    ma_1
+            GOTO    ma_0
 
 overload:   BTFSC   foverC
-            GOTO    ma_1          ; do not reset timer when foverC already set
+            GOTO    ma_0          ; do not reset timer when foverC already set
             BSF     foverC        ; remember shortcut
             CLRF    TMR1L         ; | reset T1 to init value
             MOVLW   CTIMET1       ; |
             MOVWF   TMR1H         ; |
 
+ma_0:       ; TIMER 0
+            BTFSS   INTCON,T0IF   ; T0 overflow?
+            GOTO    ma_1          ; no, go to ma_1
+
+T0:         BCF     INTCON,T0IF   ; T0 overflow, clear overflow flag
+            MOVLW   CTIMET0       ; initialize time T0
+            ADDWF   TMR0, F       ; |
+
 ma_1:
-            ; TIMER
-            BTFSS   PIR1,TMR1IF   ; T1 overflow ? (T1 = 4.9152 ms @ 4.0 MHz)
+            ; TIMER 1
+            BTFSS   PIR1,TMR1IF   ; T1 overflow?
             GOTO    main          ; no, loop
 ; ** T1 **
 T1:         BCF     PIR1,TMR1IF   ; yes, clear overflow flag
