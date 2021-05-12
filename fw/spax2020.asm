@@ -91,7 +91,8 @@ endc
 #define     fblikmask   b'00000010'
 #define     fDCCok      flags,2     ; delayed flag DCC
 #define     fDCCtstok   flags,3     ; fast test DCC
-#define     foverR      flags,4     ; fast flag
+#define     foverR      flags,4     ; return value of overload
+#define     fover       flags,5     ; long-time state of overload (poll this value to ask)
 
 #define     s_drv_en     state,0; output state
 #define     s_overcur    state,1; overcurrent detected
@@ -222,18 +223,6 @@ main:       nop
             call    DCCtstfast
             call    handleLed
 
-;            CALL    overload_detect
-;            BTFSC   foverR
-;            GOTO    overload_
-;            GOTO    ma_0
-;
-;overload_:   BTFSC   foverR
-;            GOTO    ma_0           ; do not reset timer when foverR already set
-;            BSF     foverR         ; remember shortcut
-;            CLRF    TMR1L          ; | reset T1 to init value
-;            MOVLW   CTIMET1        ; |
-;            MOVWF   TMR1H          ; |
-
 ma_0:
             ; TIMER 0
             BTFSS   INTCON,T0IF     ; T0 overflow?
@@ -246,16 +235,29 @@ T0:         BCF     INTCON,T0IF     ; T0 overflow, clear overflow flag
             CALL    overload_detect ; is overload?
             BTFSC   foverR          ; |
             GOTO    overload        ; yes
-            INCF    over_cnt, F     ; no: if (over_cnt > 0) over_cnt--;
+no_overload:INCF    over_cnt, F     ; no: if (over_cnt > 0) over_cnt--;
             DECFSZ  over_cnt, F     ; |
             DECF    over_cnt, F     ; |
-            GOTO    ma_1
-
-
+            GOTO    calc_fover
 overload:   BTFSS   over_cnt, 3     ; overload: if (over_cnt < 8) over_cnt++;
             INCF    over_cnt, F     ; |
-            GOTO    ma_1            ; |
+            GOTO    calc_fover      ; |
 
+calc_fover:
+            MOVLW   0x0C            ; fover = (over_cnt >= 4);
+            ANDWF   over_cnt, W     ; |
+            MOVWF   tmpw            ; |
+            INCF    tmpw, F         ; |
+            DECFSZ  tmpw            ; |
+            GOTO    fover_true
+fover_false:BCF     fover
+            GOTO    ma_1
+fover_true: BTFSC   fover
+            GOTO    ma_0           ; do not reset timer when foverR already set
+            BSF     fover          ; remember shortcut
+            CLRF    TMR1L          ; | reset T1 to init value
+            MOVLW   CTIMET1        ; |
+            MOVWF   TMR1H          ; |
 
 ma_1:
             ; TIMER 1
@@ -285,7 +287,7 @@ stav_0:     MOVLW   1               ; goto state 1
             GOTO    T1_end
 
             ; running, all ok
-stav_1:     BTFSC   foverR          ; if (overcurrent)
+stav_1:     BTFSC   fover           ; if (overcurrent)
             GOTO    calc_OC         ; yes, solve what to do
             MOVF    short_cnt, W    ; no, test if short_cnt is in normal state (short_cnt == short_t1)
             SUBLW   short_t1        ; |
@@ -318,7 +320,7 @@ stav_2:     DECFSZ  restore_cnt,f   ; measure recovery wait time
             GOTO    T1_end
 
             ; short circuit, track on, recovery
-stav_3:     BTFSC   foverR          ; if (overcurrent)
+stav_3:     BTFSC   fover           ; if (overcurrent)
             GOTO    calc_OC2        ; yes, solve what to do
             DECFSZ  short_cnt, f    ; no, if (short_cnt == 0)
             GOTO    T1_end          ; no, do nothing
@@ -399,9 +401,9 @@ handleLed:
             btfss   s_drv_en
             bcf     led_green
 
-            btfss   foverR          ; copy enable output to led red
+            btfss   fover           ; copy enable output to led red
             bcf     led_red
-            btfsc   foverR
+            btfsc   fover
             bsf     led_red
             return
 
