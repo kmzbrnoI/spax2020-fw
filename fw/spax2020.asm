@@ -108,8 +108,6 @@ irq:        movwf   tmpw        ; irq
 
             btfsc   INTCON,GPIF
             goto    irq_dcc
-;            btfsc   INTCON, T0IF
-;            goto    irq_timer
             nop                 ; unknown interrupt
             goto    irq_end
 
