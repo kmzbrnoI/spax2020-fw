@@ -172,8 +172,8 @@ init:                               ; init
             BANK1
             movlw   GP_TRIS
             movwf   TRISIO
-            ;call    0x3FF          ; get OSCCAL value; comment out this for simulation
-            ;movwf   OSCCAL         ; comment out this for simulation
+            call    0x3FF          ; get OSCCAL value; comment out this for simulation
+            movwf   OSCCAL         ; comment out this for simulation
 ;            nop
 ;            nop
             movlw   IOC_INI
@@ -247,16 +247,18 @@ calc_fover:
             ANDWF   over_cnt, W     ; |
             MOVWF   tmpw            ; |
             INCF    tmpw, F         ; |
-            DECFSZ  tmpw            ; |
-            GOTO    fover_true
-fover_false:BCF     fover
+            DECFSZ  tmpw, F         ; |
+            GOTO    fover_true      ; (over_cnt >= 4) -> set overload on
+fover_not_true:                     ; clear fover only in (over_cnt < 2) to add hysteresis
+            MOVLW   0x0E
+            ANDWF   over_cnt, W
+            MOVWF   tmpw
+            INCF    tmpw, F
+            DECFSZ  tmpw, F         ; first decrement
+            GOTO    ma_1            ; > 0 -> original number >= 2 -> exit
+            BCF     fover           ; 0 -> clear fover
             GOTO    ma_1
-fover_true: BTFSC   fover
-            GOTO    ma_0           ; do not reset timer when foverR already set
-            BSF     fover          ; remember shortcut
-            CLRF    TMR1L          ; | reset T1 to init value
-            MOVLW   CTIMET1        ; |
-            MOVWF   TMR1H          ; |
+fover_true: BSF     fover
 
 ma_1:
             ; TIMER 1
@@ -400,10 +402,11 @@ handleLed:
             btfss   s_drv_en
             bcf     led_green
 
-            btfss   fover           ; copy enable output to led red
+            btfsc   drv_en          ; copy enable output to led red
             bcf     led_red
-            btfsc   fover
+            btfss   drv_en
             bsf     led_red
+
             return
 
 ; ****************************
