@@ -2,12 +2,12 @@
 ; ---------------------
 ; Spax s lépe řešenou detekcí zkratu
 ;
-; author: Michal Petrilak, 2020-09-04
+; author: Michal Petrilak, Jan Horacek
 ; assembler: gpasm
 ;
-; pro simulaci se musí zakomentovat řádky 169,170
+; For simulation, marked lines in ‹init› must be commented out
 ;
-; Toff = 30 ms, při zkratu 2.5 W na stabilizátoru
+; Toff = 30 ms, 2.5 W on stabilizer when short-circuit
         list p=12f629
         #include <p12f629.inc>
         errorlevel -305,-302
@@ -34,9 +34,9 @@ CTIMET1L    equ     0x100 - d'100'      ; |
 DCC_CHCK    equ     d'10'
 DCC_post    equ     d'3'                ; timer postscaler
 
-zkrat_t1    equ       d'04'             ; reakční čas na zkrat (prvotní a trvalý) 04 = 20 ms
-zkrat_t2    equ       d'01'             ; reakční čas na zkrat (opakovací) 01 =  5 ms
-set_obn_t0  equ       d'020'            ;   (100 ms) časy pro pokus o obnovu napájení
+zkrat_t1    equ       d'04'             ; short-circuit react time (first & permanent) 04 = 20 ms
+zkrat_t2    equ       d'01'             ; short-circuit react time (repeated) 01 =  5 ms
+set_obn_t0  equ       d'020'            ;   (100 ms) delays between restore attempts
 set_obn_t1  equ       d'040'            ; | (200 ms)
 set_obn_t2  equ       d'080'            ; | (400 ms)
 set_obn_t3  equ       d'120'            ; | (600 ms))
@@ -67,13 +67,13 @@ cblock 0x30
             GP_ram
             flags
             flags_DCC
-            zes_stav
+            state
             DCC_cnt
             LED_cnt
-            zkrat_cnt
+            short_cnt
             DCCtmr_post
-            obn_stav    ; stav obnovení (jak dlouho čekat)
-            obn_cnt     ; čítač času obnovení (4xT1)
+            restore_state     ; output restoring state (how long to wait)
+            restore_cnt       ; output restoring counter (4xT1)
             overload_debouncer
 endc
 
@@ -88,8 +88,8 @@ endc
 #define     fDCCtstok   flags,3     ; fast test DCC
 #define     foverC      flags,4     ; fast flag
 
-#define     drv_zap     zes_stav,0; output state
-#define     zkrat       zes_stav,1; overcurrent detected
+#define     drv_zap     state,0; output state
+#define     zkrat       state,1; overcurrent detected
 
 ; ****************************
 ; **         START          **
@@ -141,7 +141,7 @@ obn_tab:    ANDLW   0x03
             RETLW   set_obn_t2
             RETLW   set_obn_t3
 
-skok_stav:  MOVF    zes_stav,w
+skok_stav:  MOVF    state,w
             ANDLW   0x03
             ADDWF   PCL, F
             GOTO    stav_0      ; invalid
@@ -242,94 +242,94 @@ overload_detect:
             GOTO    ma_1
 
 overload:   BTFSC   foverC
-            GOTO    ma_1        ; do not reset timer when foverC already set
-            BSF     foverC      ; remember shortcut
-            CLRF    TMR1L       ; | reset T1 to init value
-            MOVLW   CTIMET1     ; |
-            MOVWF   TMR1H       ; |
+            GOTO    ma_1          ; do not reset timer when foverC already set
+            BSF     foverC        ; remember shortcut
+            CLRF    TMR1L         ; | reset T1 to init value
+            MOVLW   CTIMET1       ; |
+            MOVWF   TMR1H         ; |
 
 ma_1:
             ; TIMER
-            BTFSS   PIR1,TMR1IF ; T1 overflow ? (T1 = 4.9152 ms @ 4.0 MHz)
-            GOTO    main        ; no, loop
+            BTFSS   PIR1,TMR1IF   ; T1 overflow ? (T1 = 4.9152 ms @ 4.0 MHz)
+            GOTO    main          ; no, loop
 ; ** T1 **
-T1:         BCF     PIR1,TMR1IF ; yes, clear overflow flag
-            MOVLW   CTIMET1     ; initialize time T1
-            MOVWF   TMR1H       ; T1 = 4.9152 ms
-            MOVLW   CTIMET1L    ; |
-            ADDWF   TMR1L, F    ; |
+T1:         BCF     PIR1,TMR1IF   ; yes, clear overflow flag
+            MOVLW   CTIMET1       ; initialize time T1
+            MOVWF   TMR1H         ; T1 = 4.9152 ms
+            MOVLW   CTIMET1L      ; |
+            ADDWF   TMR1L, F      ; |
 
-            decfsz  DCCtmr_post ; postscaler for DCC testing
+            decfsz  DCCtmr_post   ; postscaler for DCC testing
             goto    nodcctst
             movlw   DCC_post
             movwf   DCCtmr_post
-            call    DCCtst      ; solve DCC detection
+            call    DCCtst        ; solve DCC detection
 
 nodcctst:
-            GOTO    skok_stav   ; state machine - begin
+            GOTO    skok_stav     ; state machine - begin
 
             ; invalid state
-stav_0:     MOVLW   1           ; goto state 1
-            MOVWF   zes_stav
+stav_0:     MOVLW   1             ; goto state 1
+            MOVWF   state
             movlw   1
-            movwf   zkrat_cnt
+            movwf   short_cnt
             GOTO    T1_end
 
             ; running, all ok
-stav_1:     BTFSC   foverC       ; if (overcurrent)
-            GOTO    calc_OC     ; yes, solve what to do
-            MOVF    zkrat_cnt, W; no, test if zkrat_cnt is in normal state (zkrat_cnt == zkrat_t1)
-            SUBLW   zkrat_t1  ; |
-            BTFSS   STATUS,Z    ; |
-            INCF    zkrat_cnt, F; no, increment by 1
+stav_1:     BTFSC   foverC        ; if (overcurrent)
+            GOTO    calc_OC       ; yes, solve what to do
+            MOVF    short_cnt, W  ; no, test if short_cnt is in normal state (short_cnt == zkrat_t1)
+            SUBLW   zkrat_t1      ; |
+            BTFSS   STATUS,Z      ; |
+            INCF    short_cnt, F  ; no, increment by 1
             GOTO    T1_end
 calc_OC:
-            DECFSZ  zkrat_cnt, f; measure overcurrent time, is it enought?
-            GOTO    T1_end      ; no, do nothing now
-            MOVLW   0x01        ; yes, move to next state (poweroff)
-            ADDWF   zes_stav,f
-            MOVLW   0x00        ; set first recover interval
-            MOVWF   obn_stav    ; |
-            CALL    obn_tab     ; |
-            MOVWF   obn_cnt     ; |
+            DECFSZ  short_cnt, f  ; measure overcurrent time, is it enought?
+            GOTO    T1_end        ; no, do nothing now
+            MOVLW   0x01          ; yes, move to next state (poweroff)
+            ADDWF   state,f
+            MOVLW   0x00          ; set first recover interval
+            MOVWF   restore_state ; |
+            CALL    obn_tab       ; |
+            MOVWF   restore_cnt   ; |
             GOTO    T1_end
 
             ; short cirtuit, track off
-stav_2:     DECFSZ  obn_cnt,f   ; measure recovery wait time
-            GOTO    T1_end      ; if (obn_cnt > 0) then wait
+stav_2:     DECFSZ  restore_cnt,f ; measure recovery wait time
+            GOTO    T1_end        ; if (restore_cnt > 0) then wait
 
-            MOVF    obn_stav,w  ; |
-            SUBLW   d'02'       ; if (obn_stav < 3)
-            MOVLW   zkrat_t1    ; |
-            BTFSC   STATUS,C    ; yes, set t1
-            MOVLW   zkrat_t2    ; no, set t2
-            MOVWF   zkrat_cnt   ; |
-            MOVLW   0x01        ; move to next state (recovery)
-            ADDWF   zes_stav,f
+            MOVF    restore_state,w ; |
+            SUBLW   d'02'         ; if (restore_state < 3)
+            MOVLW   zkrat_t1      ; |
+            BTFSC   STATUS,C      ; yes, set t1
+            MOVLW   zkrat_t2      ; no, set t2
+            MOVWF   short_cnt     ; |
+            MOVLW   0x01          ; move to next state (recovery)
+            ADDWF   state,f
             GOTO    T1_end
 
             ; short circuit, track on, recovery
-stav_3:     BTFSC   foverC       ; if (overcurrent)
-            GOTO    calc_OC2    ; yes, solve what to do
-            DECFSZ  zkrat_cnt, f; no, if (zkrat_cnt == 0)
-            GOTO    T1_end      ; no, do nothing
-            MOVLW   0x00        ; yes, go to state 1 (run)
-            MOVWF   obn_stav    ; |
-            MOVLW   0x01        ; |
-            MOVWF   zes_stav    ; |
+stav_3:     BTFSC   foverC        ; if (overcurrent)
+            GOTO    calc_OC2      ; yes, solve what to do
+            DECFSZ  short_cnt, f  ; no, if (short_cnt == 0)
+            GOTO    T1_end        ; no, do nothing
+            MOVLW   0x00          ; yes, go to state 1 (run)
+            MOVWF   restore_state ; |
+            MOVLW   0x01          ; |
+            MOVWF   state         ; |
             GOTO    T1_end
 
-calc_OC2:   DECFSZ  zkrat_cnt, f; enought time in state 3 and overcurrent ?
-            GOTO    T1_end      ; no, do nothing
-            MOVLW   0x02        ; overcurrent detected, go to state 2
-            MOVWF   zes_stav    ; |
-            MOVF    obn_stav,w  ; if (obn_stav < 3)
-            SUBLW   d'02'       ; |
-            BTFSC   STATUS,C    ; |
-            INCF    obn_stav,f  ; yes, obn_stav++
-            MOVFW   obn_stav    ; |
-            CALL    obn_tab     ; get obn_cnt
-            MOVWF   obn_cnt     ; |
+calc_OC2:   DECFSZ  short_cnt, f  ; enought time in state 3 and overcurrent ?
+            GOTO    T1_end        ; no, do nothing
+            MOVLW   0x02          ; overcurrent detected, go to state 2
+            MOVWF   state         ; |
+            MOVF    restore_state,w ; if (restore_state < 3)
+            SUBLW   d'02'         ; |
+            BTFSC   STATUS,C      ; |
+            INCF    restore_state,f ; yes, restore_state++
+            MOVFW   restore_state ; |
+            CALL    obn_tab       ; get restore_cnt
+            MOVWF   restore_cnt   ; |
 
             GOTO    T1_end
 
@@ -348,13 +348,13 @@ T1_end:
 ; **       Functions        **
 ; ****************************
 
-DCCtstfast: movfw   flags_DCC   ; fDCCtstok = fDCC1_hi AND fDCC1_lo AND fDCC2_hi AND fDCC2_lo
-            xorlw   0x0f        ; all 4 flags must be set, then set fDCCtstok
+DCCtstfast: movfw   flags_DCC     ; fDCCtstok = fDCC1_hi AND fDCC1_lo AND fDCC2_hi AND fDCC2_lo
+            xorlw   0x0f          ; all 4 flags must be set, then set fDCCtstok
             btfss   STATUS, Z
             bcf     fDCCtstok
             btfsc   STATUS, Z
             bsf     fDCCtstok
-            btfsc   fDCCtstok   ; if fDCCtstok then no more testing
+            btfsc   fDCCtstok     ; if fDCCtstok then no more testing
             IRQ_IOC_DIS
             return
 
@@ -363,38 +363,36 @@ DCCtstfast: movfw   flags_DCC   ; fDCCtstok = fDCC1_hi AND fDCC1_lo AND fDCC2_hi
 DCCtst:
             IRQ_IOC_CLR
             IRQ_IOC_ENA
-            clrf    flags_DCC   ; DCC test begin
+            clrf    flags_DCC     ; DCC test begin
 
-                                ; delay DCCok flag
+                                  ; delay DCCok flag
             btfss   fDCCtstok
             goto    DCCnok
-            btfsc   fDCCok      ; test DCCok flag
+            btfsc   fDCCok        ; test DCCok flag
             return
-            incf    DCC_cnt, w  ; inc OK counter
+            incf    DCC_cnt, w    ; inc OK counter
             movwf   DCC_cnt
-            sublw   DCC_CHCK    ; if (DCC_cnt > DCC_CHCK) then
+            sublw   DCC_CHCK      ; if (DCC_cnt > DCC_CHCK) then
             btfsc   STATUS, C
             return
-            bsf     fDCCok      ; set DCCok flag
+            bsf     fDCCok        ; set DCCok flag
             return
 DCCnok:
-            bcf     fDCCok      ; reset DCCok flag
-            clrf    DCC_cnt     ; clear DCC_cnt
+            bcf     fDCCok        ; reset DCCok flag
+            clrf    DCC_cnt       ; clear DCC_cnt
             return
 
 ; ****************************
 
 handleLed:
-            btfsc   drv_zap     ; copy drv_zap to led green
+            btfsc   drv_zap       ; copy drv_zap to led green
             bsf     led_green
             btfss   drv_zap
             bcf     led_green
 
-
-ledgrend:
-            btfsc   drv_en      ; copy enable output  to led red
+            btfss   foverC        ; copy enable output to led red
             bcf     led_red
-            btfss   drv_en
+            btfsc   foverC
             bsf     led_red
             return
 
